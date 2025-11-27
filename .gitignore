@@ -1,0 +1,8 @@
+# Ignore Lecture Note
+*.pdf
+*.vvp
+*.vcd
+*.hex
+*.pptx
+!input.hex
+!weight_transposed.hex

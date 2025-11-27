@@ -1,9 +1,10 @@
 ///////////////////////////////////
-//            TEAM XX            // 
+//            TEAM 07            // 
 //                               //
-//  - 20xxxxxxxx  KIM MINSU      //
-//  - 20xxxxxxxx  LEE YOUNGHEE   //
+//  - 2020105400  KIM JIWON      //
+//  - 2020105420  IN  SUNWOO     //
 //  - 20xxxxxxxx  HONG GILDONG   //
+//                               //
 ///////////////////////////////////
 
 #include <stdio.h>
