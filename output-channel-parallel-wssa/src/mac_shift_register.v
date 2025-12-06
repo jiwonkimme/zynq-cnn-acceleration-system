@@ -1,47 +1,56 @@
 /*
 ================================================================================
-  Module Name:    mac_shift_register
-  Description:    Shift Register Buffer for 2D MAC (Convolution) Operations
+  Module Name:    mac_shift_register_24w
+  Description:    Parameterized Shift Register Buffer for 2D Convolution (Sliding Window)
   
   ------------------------------------------------------------------------------
   [Functional Overview]
-  This module serves as an input data buffer for a 5x5 sliding window convolution.
-  It manages a 5-element shift register (`i_col`) to efficiently feed pixel data 
-  to the MAC unit. It operates in a "Load-then-Shift" pattern to maximize data reuse.
+  This module acts as an input data buffer for MAC units performing 2D convolution.
+  It generates a sliding window output by operating in a "Load-then-Shift" manner.
+  Unlike the single-window version, this module is designed to process a continuous 
+  set of windows (defined by WINDOW_SET) across multiple logical rows.
 
   [Operation Sequence]
-  The module uses a counter (`pixel_count`) running from 0 to 4:
-    1. Count == 0 (Bulk Load): 
-       - Loads 5 rows of input data (`i_input_0` ~ `i_input_4`) in parallel.
-       - Represents the start of a new column in the input feature map.
+  The module utilizes two counters: `pixel_count` (Column) and `row_count` (Row).
+  
+    1. Bulk Load (pixel_count == 0):
+       - Simultaneously loads 5 rows of input data (`i_input_0` ~ `i_input_4`).
+       - Initializes the shift register for the start of a new window sequence.
        
-    2. Count == 1~4 (Shift): 
-       - Shifts the register values to the left (i_col[0] <= i_col[1]...).
-       - Injects new data (`i_input_4`) into the LSB.
-       - Represents the sliding window moving horizontally.
+    2. Shift Operation (pixel_count == 1 ~ WINDOW_SET-1):
+       - Shifts the register values to the left (Next Pixel).
+       - Injects new data (`i_input_4`) into the LSB to update the window.
+       - Generates valid sliding windows for MAC operations continuously.
 
-  [FSM & Control]
-  - IDLE: Waits for `i_run` signal.
-  - SHIFT: Executes the Load/Shift operation for `WINDOW_SET` times (5 sets).
-  - DONE: Assert `o_input_load_done` when all sets are processed.
+    3. Row & Set Management:
+       - The operation repeats for `WINDOW_SET` cycles (default: 24 windows).
+       - After completing one set, `row_count` increments, and the process repeats.
+       - The module finishes when `WINDOW_HEIGHT` number of sets are processed.
+
+  [FSM Control]
+  - IDLE : Waiting for `i_run` trigger.
+  - SHIFT: Active state performing Load/Shift operations.
+           Transitions back to IDLE only when `window_set_done` is asserted.
 
   ------------------------------------------------------------------------------
   [Parameters]
-  - WINDOW_SIZE : Kernel width (Default: 5)
-  - DATA_WIDTH  : Pixel bit-width (Default: 8-bit)
-  - WINDOW_SET  : Number of window sets to process (Default: 5)
+  - WINDOW_WIDTH  : Kernel width (Default: 5)
+  - WINDOW_HEIGHT : Kernel height / Number of Row sets to process (Default: 5)
+  - WINDOW_SET    : Number of sliding windows per row (Default: 24)
+  - DATA_WIDTH    : Pixel bit-width (Default: 8)
 
   [I/O Description]
-  - i_run       : Start trigger (Level signal)
-  - i_input_X   : 5 parallel input data channels (8-bit each)
-  - o_mac_input : Flattened 40-bit output (5 pixels x 8 bits) to MAC unit
+  - i_run         : Level-sensitive start signal.
+  - i_input_0~4   : Parallel input data for 5 rows.
+  - o_mac_input   : Flattened vector containing the current N-pixel window.
 ================================================================================
 */
 
 module mac_shift_register #(
-    parameter WINDOW_SIZE   = 5,    // 5x5 Kernel width
-    parameter DATA_WIDTH    = 8,     // Pixel width
-    parameter WINDOW_SET    = 5    // Number of rows per window set
+    parameter WINDOW_WIDTH  = 5,    // Kernel width x height
+    parameter WINDOW_HEIGHT = 5,    // Kernel width x height
+    parameter DATA_WIDTH    = 8,    // Pixel data width
+    parameter WINDOW_SET    = 24    // Number of windows per window set
 )(
     input   wire                                    clk,
     input   wire                                    rstn,
@@ -51,17 +60,20 @@ module mac_shift_register #(
     input   wire    [DATA_WIDTH-1:0]                i_input_2,
     input   wire    [DATA_WIDTH-1:0]                i_input_3,
     input   wire    [DATA_WIDTH-1:0]                i_input_4,
-    output  wire    [DATA_WIDTH*WINDOW_SIZE-1:0]    o_mac_input,
+    output  wire    [DATA_WIDTH*WINDOW_WIDTH-1:0]   o_mac_input,
     output  wire                                    o_input_load_done
 );
-    // Shift Register for Input Data Columns
-    reg     [DATA_WIDTH-1:0]    i_col [0:WINDOW_SIZE-1]; // 5 shift registers for 5 columns
-    reg     [2:0]               pixel_count;
-    reg     [2:0]               window_count;
+    parameter ROW_COUNT_WIDTH   = $clog2(WINDOW_HEIGHT);
+    parameter PIXEL_COUNT_WIDTH = $clog2(WINDOW_SET);
 
-    wire                        row_first_load;
-    wire                        window_done;
-    wire                        window_set_done;
+    // Shift Register for Input Data Columns
+    reg     [DATA_WIDTH-1:0]        i_col [0:WINDOW_WIDTH-1]; // 5 shift registers for 5 columns
+    reg     [PIXEL_COUNT_WIDTH-1:0] pixel_count;
+    reg     [ROW_COUNT_WIDTH-1:0]   row_count;
+
+    wire                            row_first_load;
+    wire                            row_done;
+    wire                            window_set_done;
 
 
     parameter IDLE      = 1'b0,
@@ -78,9 +90,9 @@ module mac_shift_register #(
         end
     end
 
-    assign row_first_load   = (pixel_count == 3'd0) ? 1'b1 : 1'b0;
-    assign window_done      = (pixel_count == 3'd4)   ? 1'b1 : 1'b0; // Each 5 rows in a window (0~4)    
-    assign window_set_done  = (window_count == WINDOW_SET-1) && (pixel_count == WINDOW_SIZE-1)    ? 1'b1 : 1'b0; // After 5 windows
+    assign row_first_load   = (pixel_count == {PIXEL_COUNT_WIDTH{1'b0}})                        ? 1'b1 : 1'b0;
+    assign row_done         = (pixel_count == WINDOW_SET-1)                                     ? 1'b1 : 1'b0; // 1 row of 24 windows in a window set    
+    assign window_set_done  = (row_count == WINDOW_HEIGHT-1) && row_done                        ? 1'b1 : 1'b0; // After 5 windows
     
     // Next State Logic
     always @(*) begin
@@ -97,15 +109,15 @@ module mac_shift_register #(
     always @(posedge clk or negedge rstn) begin
         if(!rstn) begin
             {i_col[0], i_col[1], i_col[2], i_col[3], i_col[4]} <= 40'd0;
-            pixel_count     <= 3'd0;
-            window_count    <= 3'd0;
+            pixel_count  <= {PIXEL_COUNT_WIDTH{1'b0}};
+            row_count    <= {ROW_COUNT_WIDTH{1'b0}};
         end else begin
             case(state)
                 IDLE: begin
                     // 초기화
-                    pixel_count     <= 3'd0;
-                    window_count    <= 3'd0;
                     {i_col[0], i_col[1], i_col[2], i_col[3], i_col[4]} <= 40'd0;
+                    pixel_count  <= {PIXEL_COUNT_WIDTH{1'b0}};
+                    row_count    <= {ROW_COUNT_WIDTH{1'b0}};
                 end
                 SHIFT: begin
                     // ------------------------------------------------
@@ -122,13 +134,13 @@ module mac_shift_register #(
                     // ------------------------------------------------
                     // B. Counter Update Logic
                     // ------------------------------------------------
-                    if(window_done) begin
-                        pixel_count     <= 3'd0;
+                    if(row_done) begin
+                        pixel_count <= {PIXEL_COUNT_WIDTH{1'b0}};
                         if(!window_set_done) begin
-                            window_count    <= window_count + 3'd1;
+                            row_count    <= row_count + 1;
                         end
                     end else begin
-                        pixel_count         <= pixel_count + 3'd1;
+                        pixel_count      <= pixel_count + 1;
                     end
                 end
             endcase
