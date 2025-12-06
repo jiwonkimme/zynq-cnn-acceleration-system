@@ -23,14 +23,16 @@ module tb_mac_shift_register();
         .o_input_load_done  (o_input_load_done)
     );
 
+    defparam u_mac_shift_register.WINDOW_SET = 5; // 5 windows per window set
+
     // Clock Generation
     always #5 clk = ~clk;
 
     integer cnt;
 
     initial begin
-        $dumpfile("tb_mac_shift_register.vcd");
-        $dumpvars(0, tb_mac_shift_register);
+        $dumpfile("tb_mac_shift_register_24w.vcd");
+        $dumpvars(0, tb_mac_shift_register_24w);
 
         clk = 1;
         rstn = 0;
@@ -52,26 +54,47 @@ module tb_mac_shift_register();
         cnt = 0;
         // i_input_0 = 0; // 초기값 설정 가정
         #10;
-        repeat (25) begin
+        while(i_run) begin
             #10;
-            
-            if (cnt < 4) begin
-                // 0->1->2->3->4 구간: 1씩 증가
-                i_input_0 = i_input_0 + 8'd1;
-                i_input_1 = i_input_1 + 8'd1;
-                i_input_2 = i_input_2 + 8'd1;
-                i_input_3 = i_input_3 + 8'd1;
-                i_input_4 = i_input_4 + 8'd1;
-                cnt = cnt + 1;
-            end else begin
-                // 4->28 구간: 24 증가 (점프)
-                i_input_0 = i_input_0 + 8'd24; 
-                i_input_1 = i_input_1 + 8'd24;
-                i_input_2 = i_input_2 + 8'd24;
-                i_input_3 = i_input_3 + 8'd24;
-                i_input_4 = i_input_4 + 8'd24;
-                cnt = 0; // 카운터 리셋
+            if(u_mac_shift_register.WINDOW_SET == 5) begin
+                if (cnt < 4) begin
+                    // 0->1->2->3->4 구간: 1씩 증가
+                    i_input_0 = i_input_0 + 8'd1;
+                    i_input_1 = i_input_1 + 8'd1;
+                    i_input_2 = i_input_2 + 8'd1;
+                    i_input_3 = i_input_3 + 8'd1;
+                    i_input_4 = i_input_4 + 8'd1;
+                    cnt = cnt + 1;
+                end else begin
+                    // 4->28 구간: 24 증가 (점프)
+                    i_input_0 = i_input_0 + 8'd24; 
+                    i_input_1 = i_input_1 + 8'd24;
+                    i_input_2 = i_input_2 + 8'd24;
+                    i_input_3 = i_input_3 + 8'd24;
+                    i_input_4 = i_input_4 + 8'd24;
+                    cnt = 0; // 카운터 리셋
+                end
             end
+            else if(u_mac_shift_register.WINDOW_SET == 24) begin
+                if (cnt < 23) begin
+                    // 0->1->2->3->4 구간: 1씩 증가
+                    i_input_0 = i_input_0 + 8'd1;
+                    i_input_1 = i_input_1 + 8'd1;
+                    i_input_2 = i_input_2 + 8'd1;
+                    i_input_3 = i_input_3 + 8'd1;
+                    i_input_4 = i_input_4 + 8'd1;
+                    cnt = cnt + 1;
+                end else begin
+                    // 4->28 구간: 24 증가 (점프)
+                    i_input_0 = i_input_0 + 8'd5; 
+                    i_input_1 = i_input_1 + 8'd5;
+                    i_input_2 = i_input_2 + 8'd5;
+                    i_input_3 = i_input_3 + 8'd5;
+                    i_input_4 = i_input_4 + 8'd5;
+                    cnt = 0; // 카운터 리셋
+                end
+            end
+            
             if(o_input_load_done) begin
                 $display("Input Load Done at time %t", $time);
                 #10;
