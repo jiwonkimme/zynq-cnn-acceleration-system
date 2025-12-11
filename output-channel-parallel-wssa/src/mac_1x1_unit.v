@@ -14,9 +14,11 @@
 //       - Prevents overflow during deep convolution layer accumulation (e.g., 5x5x12 filters).
 //////////////////////////////////////////////////////////////////////////////////
 
+`timescale 1ns / 1ps
+
 module mac_1x1_unit(
-    input wire                  CLK,
-    input wire                  RSTN,
+    input wire                  clk,
+    input wire                  rstn,
     input wire                  en_x_i,
     input wire                  en_w_i,
 
@@ -42,8 +44,8 @@ module mac_1x1_unit(
     wire signed  [15:0] MUL;
 
     // WEIGHT + stop_mac + used_row
-    always @(posedge CLK or negedge RSTN) begin
-        if(!RSTN) begin
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
             WEIGHT          <=  8'd0;
             stop_mac_reg    <=  1'b0;
             used_row_reg    <=  1'b0;
@@ -62,8 +64,8 @@ module mac_1x1_unit(
     // x_i(Unsigned) 앞에 0을 붙여 양수 Signed로 만든 뒤 곱함
     assign  MUL         =   WEIGHT * $signed({1'b0, x_i});
     
-    always @(posedge CLK or negedge RSTN) begin
-        if(!RSTN) begin
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
             SUM         <=  32'd0;
         end else if(en_w_i||stop_mac_reg||~used_row_reg) begin
             SUM         <=  32'd0;
@@ -73,8 +75,8 @@ module mac_1x1_unit(
     end
 
     // I/O interface
-    always @(posedge CLK or negedge RSTN) begin
-        if(!RSTN) begin
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
             x_o             <=  8'd0;
             w_o             <=  8'd0;
         end else begin

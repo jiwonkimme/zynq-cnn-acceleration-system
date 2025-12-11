@@ -1,8 +1,53 @@
 /*
 ================================================================================
   Module Name:    mac_shift_register
-  Description:    Zero-Latency Start Shift Register for 2D Convolution
-                  (Optimized: No IDLE state, Immediate response to i_run)
+  Description:    Zero-Latency Start Shift Register for 2D Convolution Input Buffer
+  
+  ------------------------------------------------------------------------------
+  [General Description]
+  This module acts as a specialized input data buffer for a Weight-Stationary 
+  Systolic Array (WSSA). It generates a sliding window output vector by 
+  operating in a "Load-then-Shift" manner without FSM overhead.
+
+  [Key Features & Optimizations]
+  1. Zero-Latency Start: 
+     - Eliminates the traditional IDLE state to maximize throughput.
+     - The first valid operation (Bulk Load) occurs immediately on the 
+       same cycle `i_run` is asserted high.
+       
+  2. PPA Optimized (Implicit Clock Gating):
+     - When `i_run` is low, the logic holds its state (no explicit reset in `else`).
+     - This allows synthesis tools to infer Clock Enable (CE) logic on registers, 
+       significantly reducing dynamic power consumption during inactive periods.
+
+  3. Hierarchical Counting:
+     - pixel_count: Tracks the column index within a window set (0 ~ WINDOW_SET-1).
+     - row_count  : Tracks the logical row index processed (0 ~ WINDOW_HEIGHT-1).
+
+  ------------------------------------------------------------------------------
+  [Operation Flow]
+  1. Active State (i_run == 1):
+     - IF (pixel_count == 0): "Bulk Load"
+       -> Parallel loads all 5 input rows (`i_input_0`~`4`) into internal registers.
+     - ELSE: "Shift & Inject"
+       -> Shifts registers left and injects `i_input_4` into LSB.
+       -> Increments `pixel_count`.
+     
+  2. Done Conditions:
+     - `window_row_done`: Asserted at the last pixel of each row.
+     - `window_set_done`: Asserted when all rows in a set are completed.
+     - Counters automatically reset upon completion of a set, enabling 
+       back-to-back operation without extra delay.
+
+  3. Inactive State (i_run == 0):
+     - Holds current state and values (Stall/Pause).
+  
+  ------------------------------------------------------------------------------
+  [Parameters]
+  - WINDOW_WIDTH  : Kernel Width (default: 5)
+  - WINDOW_HEIGHT : Kernel Height / Row Batches (default: 5)
+  - WINDOW_SET    : Length of one input row stream (default: 24)
+  - DATA_WIDTH    : Bit-width of pixel data (default: 8)
 ================================================================================
 */
 
@@ -20,9 +65,9 @@ module mac_shift_register #(
     input   wire    [DATA_WIDTH-1:0]                i_input_2,
     input   wire    [DATA_WIDTH-1:0]                i_input_3,
     input   wire    [DATA_WIDTH-1:0]                i_input_4,
-    output  wire    [DATA_WIDTH*WINDOW_WIDTH-1:0]   o_mac_input,
-    output  wire                                    o_window_row_done,
-    output  wire                                    o_window_set_done
+    output  reg     [DATA_WIDTH*WINDOW_WIDTH-1:0]   o_mac_input,
+    output  reg                                     o_window_row_done,
+    output  reg                                     o_window_set_done
 );
 
     // Derived Parameters
@@ -38,6 +83,10 @@ module mac_shift_register #(
     wire    is_bulk_load;   // First pixel of a row -> Load all 5 inputs
     wire    is_row_done;    // Last pixel of a row
     wire    is_all_done;    // All rows completed
+
+    wire    [DATA_WIDTH*WINDOW_WIDTH-1:0]   mac_input;
+    wire                                    window_row_done;
+    wire                                    window_set_done;
 
     // -------------------------------------------------------------------------
     // Control Logic
@@ -109,10 +158,21 @@ module mac_shift_register #(
     // Output Assignments
     // -------------------------------------------------------------------------
     // Pack 5 columns into flattened output vector
-    assign o_mac_input = {i_col[0], i_col[1], i_col[2], i_col[3], i_col[4]};
+    assign mac_input = {i_col[0], i_col[1], i_col[2], i_col[3], i_col[4]};
     
     // Output control signals (Pulse High on the last cycle of operation)
-    assign o_window_row_done = is_row_done && i_run;
-    assign o_window_set_done = is_all_done && i_run;
+    assign window_row_done = (pixel_count == WINDOW_SET - 1 - 1) && i_run;
+    assign window_set_done = (row_count == WINDOW_HEIGHT - 1) && (pixel_count == WINDOW_SET - 1 - 1) && i_run;
 
+    always @(posedge clk or negedge rstn) begin
+        if(!rstn) begin
+            o_mac_input <= {DATA_WIDTH*WINDOW_WIDTH{1'b0}};
+            o_window_row_done <= 1'b0;
+            o_window_set_done <= 1'b0;
+        end else begin
+            o_mac_input <= mac_input;
+            o_window_row_done <= window_row_done;
+            o_window_set_done <= window_set_done;
+        end
+    end
 endmodule

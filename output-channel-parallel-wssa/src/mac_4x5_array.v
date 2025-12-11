@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module mac_4x5_array(
     input wire                  clk,
     input wire                  rstn,
@@ -310,49 +312,6 @@ module mac_4x5_array(
     reg signed  [31:0]  row_2_2d    [0:1];
     reg signed  [31:0]  row_3_1d;
 
-    reg signed  [31:0]  comp_result   [0:3];
-
-    always @(*) begin
-        case(en_w_i_reg)
-            5'b11111 : begin
-                comp_result[0] = after_sum_5[0];
-                comp_result[1] = after_sum_5[1];
-                comp_result[2] = after_sum_5[2];
-                comp_result[3] = after_sum_5[3];
-            end
-            5'b11110 : begin
-                comp_result[0] = after_sum_4[0];
-                comp_result[1] = after_sum_4[1];
-                comp_result[2] = after_sum_4[2];
-                comp_result[3] = after_sum_4[3];
-            end
-            5'b11100 : begin
-                comp_result[0] = after_sum_3[0];
-                comp_result[1] = after_sum_3[1];
-                comp_result[2] = after_sum_3[2];
-                comp_result[3] = after_sum_3[3];
-            end
-            5'b11000 : begin
-                comp_result[0] = after_sum_2[0];
-                comp_result[1] = after_sum_2[1];
-                comp_result[2] = after_sum_2[2];
-                comp_result[3] = after_sum_2[3];
-            end
-            5'b10000 : begin
-                comp_result[0] = after_sum_1[0];
-                comp_result[1] = after_sum_1[1];
-                comp_result[2] = after_sum_1[2];
-                comp_result[3] = after_sum_1[3];
-            end
-            default : begin
-                comp_result[0] = after_sum_5[0];
-                comp_result[1] = after_sum_5[1];
-                comp_result[2] = after_sum_5[2];
-                comp_result[3] = after_sum_5[3];
-            end
-        endcase
-    end
-
     always @(posedge clk or negedge rstn) begin
         if(!rstn) begin
             row_1_3d[0] <=  32'd0;
@@ -364,16 +323,16 @@ module mac_4x5_array(
 
             row_3_1d    <=  32'd0;
         end else begin
-            row_1_3d[0] <=  comp_result[0];
+            row_1_3d[0] <=  after_sum_5[0];
             row_1_3d[1] <=  row_1_3d[0];
             row_1_3d[2] <=  row_1_3d[1];
 
-            row_2_2d[0] <=  comp_result[1];
+            row_2_2d[0] <=  after_sum_5[1];
             row_2_2d[1] <=  row_2_2d[0];
 
-            row_3_1d    <=  comp_result[2];
+            row_3_1d    <=  after_sum_5[2];
         end
     end
-    assign  RESULT  =   {row_1_3d[2], row_2_2d[1], row_3_1d, comp_result[3]};
+    assign  RESULT  =   {row_1_3d[2], row_2_2d[1], row_3_1d, after_sum_5[3]};
 //------------------Output end------------------
 endmodule

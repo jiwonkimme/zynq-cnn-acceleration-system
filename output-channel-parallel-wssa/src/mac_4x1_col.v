@@ -12,9 +12,11 @@
 //    2. [Unsigned Compatibility] Updated internal wiring to support Unsigned 8-bit inputs.
 //////////////////////////////////////////////////////////////////////////////////
 
+`timescale 1ns / 1ps
+
 module mac_4x1_col(
-    input wire  CLK,
-    input wire  RSTN,
+    input wire  clk,
+    input wire  rstn,
     input wire  en_x_i,
     input wire  en_w_i,
     input wire  stop_mac,
@@ -41,8 +43,8 @@ module mac_4x1_col(
 
     // Instantiate the MAC module
     mac_1x1_unit mac1 (
-        .CLK(CLK),
-        .RSTN(RSTN),
+        .clk(clk),
+        .rstn(rstn),
         .en_x_i(en_x_i),
         .en_w_i(en_w_i),
         .stop_mac(stop_mac),
@@ -57,8 +59,8 @@ module mac_4x1_col(
         .after_sum(after_sum_1)
     );
     mac_1x1_unit mac2 (
-        .CLK(CLK),
-        .RSTN(RSTN),
+        .clk(clk),
+        .rstn(rstn),
         .en_x_i(en_x_i),
         .en_w_i(en_w_i),
         .stop_mac(stop_mac_o[0]),
@@ -73,8 +75,8 @@ module mac_4x1_col(
         .after_sum(after_sum_2)
     );
     mac_1x1_unit mac3 (
-        .CLK(CLK),
-        .RSTN(RSTN),
+        .clk(clk),
+        .rstn(rstn),
         .en_x_i(en_x_i),
         .en_w_i(en_w_i),
         .stop_mac(stop_mac_o[1]),
@@ -89,8 +91,8 @@ module mac_4x1_col(
         .after_sum(after_sum_3)
     );
     mac_1x1_unit mac4 (
-        .CLK(CLK),
-        .RSTN(RSTN),
+        .clk(clk),
+        .rstn(rstn),
         .en_x_i(en_x_i),
         .en_w_i(en_w_i),
         .stop_mac(stop_mac_o[2]),
