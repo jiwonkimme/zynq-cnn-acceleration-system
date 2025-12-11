@@ -128,7 +128,10 @@ module tb_mac_ctrl;
         $display("[TB] Simulation Start: Phase 1 - Weight Loading");
         
         i_start = 1;
+        #(CLK_PERIOD);
         i_weight_load = 1;
+
+
         i_bulk_data = {24'h0, 8'h03, 8'h04, 8'h05, 8'h06, 8'h07}; 
         #(CLK_PERIOD);
         // 4 Row에 대해 Weight 5개씩 로딩 (총 4 사이클)
@@ -166,8 +169,7 @@ module tb_mac_ctrl;
             // [Process 1] Data Feeder (데이터를 계속 갱신하며 밀어넣음)
             begin
                 while(i_input_load) begin
-                    @(posedge clk); // 매 클럭마다 동작
-                    
+                    #(CLK_PERIOD);
                     if (cnt < 23) begin
                         i_bulk_data = i_bulk_data + {24'h0, 8'h01, 8'h01, 8'h01, 8'h01, 8'h01};
                         cnt = cnt + 1;
@@ -185,8 +187,9 @@ module tb_mac_ctrl;
                 $display("[TB] Window Set Done Signal Detected!");
                 
                 // 감지 즉시 다음 클럭에 input load를 껴서 Feeder를 멈춤
-                @(posedge clk);
-                #(CLK_PERIOD/2);
+                //@(posedge clk);
+                #(CLK_PERIOD);
+                @(negedge clk);
                 i_input_load = 0; 
             end
 
@@ -225,6 +228,9 @@ module tb_mac_ctrl;
 
                 // 4. Comparison Loop
                 while(o_compute) begin
+                    @(negedge clk);
+                    #1; // Sampling Delay
+
                     // A. Fetch Expected Data
                     if (r_cnt < 5) begin
                         expected_val = golden_mem[v_cnt + WINDOW_SET * r_cnt];
@@ -262,8 +268,6 @@ module tb_mac_ctrl;
                     end else begin
                         v_cnt = v_cnt + 1;
                     end
-                    @(posedge clk);
-                    #1; // Sampling Delay
                 end
             end
         join
