@@ -1,12 +1,3 @@
-///////////////////////////////////
-//            TEAM 07            // 
-//                               //
-//  - 2020105400  KIM JIWON      //
-//  - 2020105420  IN  SUNWOO     //
-//  - 20xxxxxxxx  HONG GILDONG   //
-//                               //
-///////////////////////////////////
-
 #include <stdio.h>
 #include "platform.h"
 #include "xparameters.h"
